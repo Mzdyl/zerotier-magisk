@@ -66,31 +66,3 @@ jobs:
         with:
           name: zerotier-magisk-aarch64-ndk-${{ steps.commit.outputs.short }}
           path: magisk/
-
-      - name: Build for Arm
-        run: |
-          PATH=`pwd`/android-ndk-$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH
-          NDK_ROOT=`pwd`/android-ndk-$ndk/toolchains/llvm/prebuilt/linux-x86_64
-
-          CC=armv7a-linux-androideabi$api_version-clang
-          CXX=armv7a-linux-androideabi$api_version-clang++
-
-          cd libnatpmp
-          make clean
-          make CC=$CC natpmpc-shared
-          cd ..
-
-          cd ZeroTierOne
-          mv make-linux.mk.arm.ndk make-linux.mk
-          make clean
-          make --silent -j $(nproc) ZT_DEBUG=0 ZT_SSO_SUPPORTED=0 CC=$CC CXX=$CXX LDFLAGS="-L../libnatpmp" DEFS="-I../libnatpmp -D__GLIBC__=0"
-          cd ..
-
-          cp ZeroTierOne/zerotier-one magisk/zerotier/
-          cp $NDK_ROOT/sysroot/usr/lib/arm-linux-androideabi/libc++_shared.so magisk/zerotier/lib
-
-      - name: Upload Arm
-        uses: actions/upload-artifact@v4
-        with:
-          name: zerotier-magisk-arm-ndk-${{ steps.commit.outputs.short }}
-          path: magisk/
