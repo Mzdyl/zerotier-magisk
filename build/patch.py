@@ -1,75 +1,96 @@
 import toml
+import os
 
-# Patch ZeroTierOne/rustybits/zeroidc/Cargo.toml
+def patch_toml_file(file_path, updates):
+    """更新 TOML 文件的指定内容"""
+    try:
+        data = toml.load(file_path)
+        for key, value in updates.items():
+            if key not in data or data[key] != value:
+                data[key] = value
+        with open(file_path, 'w') as f:
+            toml.dump(data, f)
+        print(f"Updated TOML file: {file_path}")
+    except Exception as e:
+        print(f"Error updating TOML file {file_path}: {e}")
 
-# > +ZeroTierOne/rustybits/zeroidc/Cargo.toml
-# [dependencies]
-# openssl-sys = {version = ">=0.9", features = ["vendored"]}
+def patch_text_file(file_path, patches, output_path=None):
+    """更新文本文件的指定内容"""
+    try:
+        with open(file_path, 'r') as file:
+            data = file.read()
+        
+        for old, new in patches.items():
+            if old in data:
+                data = data.replace(old, new)
+        
+        output_path = output_path or file_path
+        with open(output_path, 'w') as file:
+            file.write(data)
+        print(f"Updated text file: {file_path} -> {output_path}")
+    except Exception as e:
+        print(f"Error updating text file {file_path}: {e}")
 
-cargo_toml_path = "ZeroTierOne/rustybits/zeroidc/Cargo.toml"
-cargo_toml = toml.load(cargo_toml_path)
-cargo_toml['dependencies']['openssl-sys'] = { 'version': ">=0.9", 'features': ["vendored"] }
-with open(cargo_toml_path, 'w') as f:
-    toml.dump(cargo_toml, f)
+def main():
+    # 配置补丁内容
+    patches = [
+        {
+            "file": "ZeroTierOne/rustybits/zeroidc/Cargo.toml",
+            "type": "toml",
+            "updates": {
+                'dependencies': {
+                    'openssl-sys': { 'version': ">=0.9", 'features': ["vendored"] }
+                }
+            }
+        },
+        {
+            "file": "ZeroTierOne/rustybits/zeroidc/.cargo/config.toml",
+            "type": "toml",
+            "updates": {
+                'target': {
+                    'aarch64-unknown-linux-gnu': { "linker": "aarch64-linux-gnu-gcc" }
+                }
+            }
+        },
+        {
+            "file": "ZeroTierOne/make-linux.mk",
+            "type": "text",
+            "patches": {
+                # Patch for aarch64
+                "$(ZT_CARGO_FLAGS)": '$(ZT_CARGO_FLAGS) --target aarch64-unknown-linux-gnu --quiet',
+                'rustybits/target/release/libzeroidc.a': 'rustybits/target/aarch64-unknown-linux-gnu/release/libzeroidc.a',
+            },
+            "output": "ZeroTierOne/make-linux.mk.aarch64"
+        },
+        {
+            "file": "ZeroTierOne/make-linux.mk",
+            "type": "text",
+            "patches": {
+                # Patch for ARM
+                "$(shell $(CC) -dumpmachine | cut -d '-' -f 1)": 'armhf',
+                'override CFLAGS+=-mfloat-abi=hard -march=armv6zk -marm -mfpu=vfp -mno-unaligned-access -mtp=cp15 -mcpu=arm1176jzf-s':
+                'override CFLAGS+=-mfloat-abi=hard -march=armv7-a -marm -mfpu=vfp',
+                'override CXXFLAGS+=-mfloat-abi=hard -march=armv6zk -marm -mfpu=vfp -fexceptions -mno-unaligned-access -mtp=cp15 -mcpu=arm1176jzf-s':
+                'override CFLAGS+=-mfloat-abi=hard -march=armv7-a -marm -mfpu=vfp -fexceptions'
+            },
+            "output": "ZeroTierOne/make-linux.mk.arm"
+        },
+        {
+            "file": "ZeroTierOne/osdep/OSUtils.cpp",
+            "type": "text",
+            "patches": {
+                '/var/lib/zerotier-one': '/data/adb/zerotier/home'
+            }
+        }
+    ]
 
-# -------------------------------------------------------------------------------------------------------
+    # 执行补丁
+    for patch in patches:
+        file_path = patch["file"]
+        if patch["type"] == "toml":
+            patch_toml_file(file_path, patch["updates"])
+        elif patch["type"] == "text":
+            patch_text_file(file_path, patch["patches"], patch.get("output"))
 
-# Patch ZeroTierOne/rustybits/zeroidc/.cargo/config.toml
-
-# > +ZeroTierOne/rustybits/zeroidc/.cargo/config.toml
-# [target.aarch64-unknown-linux-gnu]
-# linker = "aarch64-linux-gnu-gcc"
-
-config_toml_path = "ZeroTierOne/rustybits/zeroidc/.cargo/config.toml"
-config_toml = toml.load(config_toml_path)
-config_toml['target']['aarch64-unknown-linux-gnu'] = { "linker": "aarch64-linux-gnu-gcc" }
-with open(config_toml_path, 'w') as f:
-    toml.dump(config_toml, f)
-
-# -------------------------------------------------------------------------------------------------------
-
-# Patch make-linux.mk
-
-make_linux_path = 'ZeroTierOne/make-linux.mk'
-with open(make_linux_path, 'r') as file: 
-    data = file.read() 
-    patch_aarch64 = data.replace(
-                        '$(ZT_CARGO_FLAGS)', '$(ZT_CARGO_FLAGS) --target aarch64-unknown-linux-gnu --quiet'
-                    ).replace(
-                        'rustybits/target/release/libzeroidc.a', 'rustybits/target/aarch64-unknown-linux-gnu/release/libzeroidc.a'
-                    )
-    patch_arm = data.replace(
-                        "$(shell $(CC) -dumpmachine | cut -d '-' -f 1)", 'armhf'
-                    ).replace(
-                        'override CFLAGS+=-mfloat-abi=hard -march=armv6zk -marm -mfpu=vfp -mno-unaligned-access -mtp=cp15 -mcpu=arm1176jzf-s',
-                        'override CFLAGS+=-mfloat-abi=hard -march=armv7-a -marm -mfpu=vfp'
-                    ).replace(
-                        'override CXXFLAGS+=-mfloat-abi=hard -march=armv6zk -marm -mfpu=vfp -fexceptions -mno-unaligned-access -mtp=cp15 -mcpu=arm1176jzf-s',
-                        'override CFLAGS+=-mfloat-abi=hard -march=armv7-a -marm -mfpu=vfp -fexceptions'
-                    )
-    patch_arm_ndk = data.replace(
-                        "$(shell $(CC) -dumpmachine | cut -d '-' -f 1)", 'armhf'
-                    ).replace(
-                        'override CFLAGS+=-mfloat-abi=hard -march=armv6zk -marm -mfpu=vfp -mno-unaligned-access -mtp=cp15 -mcpu=arm1176jzf-s',
-                        'override CFLAGS+=-march=armv7-a -marm -mfpu=vfp'
-                    ).replace(
-                        'override CXXFLAGS+=-mfloat-abi=hard -march=armv6zk -marm -mfpu=vfp -fexceptions -mno-unaligned-access -mtp=cp15 -mcpu=arm1176jzf-s',
-                        'override CFLAGS+=-march=armv7-a -marm -mfpu=vfp -fexceptions'
-                    )
-    
-    with open(make_linux_path + '.aarch64', 'w') as file:
-        file.write(patch_aarch64)
-    with open(make_linux_path + '.arm', 'w') as file:
-        file.write(patch_arm)
-    with open(make_linux_path + '.arm.ndk', 'w') as file:
-        file.write(patch_arm_ndk)
-
-# Patch ZeroTierOne/osdep/OSUtils.cpp
-
-osutil_path = 'ZeroTierOne/osdep/OSUtils.cpp'
-with open(osutil_path, 'r') as file: 
-    data = file.read().replace(
-                        '/var/lib/zerotier-one', '/data/adb/zerotier/home'
-                    )
-with open(osutil_path, 'w') as file:
-    file.write(data)
+if __name__ == "__main__":
+    main()
