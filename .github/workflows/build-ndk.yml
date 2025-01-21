@@ -38,6 +38,11 @@ jobs:
         run: |
           pip3 install toml
           python3 build/patch.py
+          
+          # 修改 osdep/LinuxEthernetTap.cpp
+          sed -i 's/pthread_setaffinity_np/sched_setaffinity/g' ZeroTierOne/osdep/LinuxEthernetTap.cpp
+          sed -i '/#include <pthread.h>/a #include <sched.h>' ZeroTierOne/osdep/LinuxEthernetTap.cpp
+          sed -i '/pthread_setaffinity_np/,+1 s/self/gettid()/g' ZeroTierOne/osdep/LinuxEthernetTap.cpp
 
       - name: Build for AArch64
         run: |
@@ -66,3 +71,4 @@ jobs:
         with:
           name: zerotier-magisk-aarch64-ndk-${{ steps.commit.outputs.short }}
           path: magisk/
+          
