@@ -16,20 +16,18 @@ log() {
 _stop() {
   pid=`pidof zerotier-one`
   if [[ $? -ne 0 ]]; then
+    _del_rules
     log "zerotier-one not running"
     return
   fi
 
   kill -9 $pid
-  
-  # delete from ip rules
-  ip rule del from all lookup main pref 1
-  ip -6 rule del from all lookup main pref 1
-  
   if [[ $? -ne 0 ]]; then
     log "kill zerotier-one failed"
     return
   fi
+
+  _del_rules
 
   log "stopped zerotier-one"
 }

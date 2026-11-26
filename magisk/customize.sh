@@ -12,6 +12,9 @@ unzip -o $ZIPFILE -x 'META-INF/*' -d $MODPATH >&2
 ui_print "- create work dir"
 rm -rf $ZTPATH/lib $ZTPATH/run
 mkdir -p $ZTPATH/run $ZTPATH/home
+if [ ! -f "$ZTPATH/home/local.conf" ]; then
+  printf '%s\n' '{"settings":{"lowBandwidthMode":true,"interfacePrefixBlacklist":["Meta","tun","utun","clash"]}}' > "$ZTPATH/home/local.conf"
+fi
 mv $MODPATH/zerotier/* $ZTPATH
 ln -sf $ZTPATH/zerotier-one $ZTPATH/zerotier-cli
 ln -sf $ZTPATH/zerotier-one $ZTPATH/zerotier-idtool
